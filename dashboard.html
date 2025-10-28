@@ -3,52 +3,572 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - FileShare</title>
+    <title>Dashboard - VideoShare</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
-</head>
-<body class="dashboard">
-    <!-- Navigation -->
-    <nav class="dashboard-nav">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <h2>📁 FileShare</h2>
-            </div>
+    <style>
+        /* Dashboard Specific Styles */
+        .dashboard-page {
+            background: var(--background-dark);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: var(--surface-dark);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background 0.3s;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .dashboard-main {
+            margin-top: 70px;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 0;
+            height: calc(100vh - 70px);
+        }
+
+        /* Upload Sidebar */
+        .upload-sidebar {
+            background: var(--surface-dark);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .upload-section {
+            margin-bottom: 30px;
+        }
+
+        .upload-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px dashed var(--primary-color);
+        }
+
+        .upload-area {
+            text-align: center;
+            cursor: pointer;
+            padding: 30px 20px;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .upload-area i {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .upload-area h3 {
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .upload-area p {
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        .upload-area small {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .upload-preview {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        #videoPreview {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .upload-form {
+            margin-top: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .upload-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-primary, .btn-secondary {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 0, 80, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        /* Video Feed */
+        .video-feed-container {
+            background: #000;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .video-feed {
+            height: 100%;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+        }
+
+        .video-container {
+            height: 100vh;
+            scroll-snap-align: start;
+            position: relative;
+            background: #000;
+        }
+
+        .video-player {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.7));
+        }
+
+        .video-info {
+            margin-bottom: 20px;
+        }
+
+        .video-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .video-author {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .video-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 20px;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .action-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+            transition: background 0.3s;
+        }
+
+        .action-btn:hover .action-icon {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .action-count {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* My Videos Section */
+        .my-videos-section {
+            margin-top: 30px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .my-videos-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .my-video-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .my-video-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .my-video-thumbnail {
+            width: 60px;
+            height: 40px;
+            border-radius: 6px;
+            background: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+        }
+
+        .my-video-info {
+            flex: 1;
+        }
+
+        .my-video-title {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .my-video-stats {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        .loading i {
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+
+        /* Message Styles */
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+            font-size: 0.9rem;
+        }
+
+        .message.error {
+            background: rgba(220, 53, 69, 0.1);
+            color: #ff6b6b;
+            border-color: #ff6b6b;
+        }
+
+        .message.success {
+            background: rgba(40, 167, 69, 0.1);
+            color: #51cf66;
+            border-color: #51cf66;
+        }
+
+        .message.warning {
+            background: rgba(255, 193, 7, 0.1);
+            color: #ffd43b;
+            border-color: #ffd43b;
+        }
+
+        /* Scrollbar */
+        .upload-sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .upload-sidebar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .upload-sidebar::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 3px;
+        }
+
+        .video-feed::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+
+        /* Responsive */
+        @media (max-width: 968px) {
+            .dashboard-main {
+                grid-template-columns: 300px 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-main {
+                grid-template-columns: 1fr;
+            }
             
-            <div class="nav-user">
-                <div class="user-info">
-                    <div class="user-avatar" id="userAvatar">U</div>
-                    <span id="userName">Loading...</span>
-                </div>
-                <button class="logout-btn" onclick="logout()">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </button>
-            </div>
+            .upload-sidebar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="dashboard-page">
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-logo">🎬 VideoShare</div>
+        <div class="nav-actions">
+            <button class="nav-btn" onclick="toggleUploadSidebar()">
+                <i class="fas fa-upload"></i>
+            </button>
+            <button class="nav-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
         </div>
     </nav>
 
     <!-- Main Content -->
     <main class="dashboard-main">
-        <!-- Upload Section -->
-        <section class="upload-section">
-            <h2><i class="fas fa-cloud-upload-alt"></i> Upload File Baru</h2>
-            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
-                <i class="fas fa-file-upload"></i>
-                <p>Klik untuk memilih file atau tarik file ke sini</p>
-                <small>Maksimal 10MB per file</small>
-            </div>
-            <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(this.files)">
-            <div id="uploadProgress"></div>
-        </section>
+        <!-- Upload Sidebar -->
+        <aside class="upload-sidebar" id="uploadSidebar">
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <h2 style="color: var(--text-primary); margin-bottom: 20px; font-size: 1.3rem;">
+                    <i class="fas fa-cloud-upload-alt"></i> Upload Video
+                </h2>
+                
+                <div id="message"></div>
 
-        <!-- Files List -->
-        <section class="file-list">
-            <h2><i class="fas fa-files"></i> Semua File</h2>
-            <div id="filesContainer">
+                <div class="upload-card">
+                    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-video"></i>
+                        <h3>Klik untuk memilih video</h3>
+                        <p>atau tarik video ke sini</p>
+                        <small>Format: MP4, MOV, AVI | Maksimal: 50MB</small>
+                    </div>
+                    
+                    <input type="file" id="fileInput" accept="video/*" style="display: none;" onchange="handleFileSelect(this.files)">
+                    
+                    <!-- Video Preview -->
+                    <div class="upload-preview">
+                        <video id="videoPreview" controls style="display: none;"></video>
+                        <div id="fileInfo" style="display: none;"></div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div id="uploadProgress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div id="progressText" style="text-align: center; color: var(--text-secondary); font-size: 0.8rem; margin-top: 5px;"></div>
+                    </div>
+
+                    <!-- Upload Form -->
+                    <form id="uploadForm" class="upload-form" style="display: none;">
+                        <div class="form-group">
+                            <label for="videoTitle">Judul Video:</label>
+                            <input type="text" id="videoTitle" placeholder="Berikan judul yang menarik..." maxlength="100" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="videoDescription">Deskripsi (opsional):</label>
+                            <textarea id="videoDescription" placeholder="Jelaskan tentang video Anda..." rows="3"></textarea>
+                        </div>
+
+                        <div class="upload-actions">
+                            <button type="button" class="btn-secondary" onclick="cancelUpload()">
+                                <i class="fas fa-times"></i> Batal
+                            </button>
+                            <button type="submit" class="btn-primary" id="uploadBtn">
+                                <i class="fas fa-upload"></i> Upload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- My Videos Section -->
+            <section class="my-videos-section">
+                <div class="section-title">
+                    <i class="fas fa-history"></i> Video Saya
+                </div>
+                <div class="my-videos-list" id="myVideosList">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Memuat video...</p>
+                    </div>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Video Feed -->
+        <section class="video-feed-container">
+            <div class="video-feed" id="videoFeed">
                 <div class="loading">
                     <i class="fas fa-spinner fa-spin"></i>
-                    <p>Memuat file...</p>
+                    <p>Memuat video...</p>
                 </div>
             </div>
         </section>
@@ -56,300 +576,382 @@
 
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/videos.js"></script>
     
     <script>
-        // File upload and management functions - FIXED VERSION
-        class FileManager {
-            constructor() {
-                this.supabase = window.supabase;
-            }
+        let selectedFile = null;
+        let currentVideos = [];
 
-            // Upload file to Supabase Storage
-            async uploadFile(file) {
-                try {
-                    const user = await window.authManager.getCurrentUser();
-                    if (!user) throw new Error('User not authenticated');
-
-                    // Generate unique file name
-                    const fileExt = file.name.split('.').pop();
-                    const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-                    // Upload file to storage
-                    const { data, error } = await this.supabase.storage
-                        .from('files')
-                        .upload(fileName, file);
-
-                    if (error) throw error;
-
-                    // Save file metadata to database
-                    const { error: dbError } = await this.supabase
-                        .from('files')
-                        .insert([
-                            {
-                                name: file.name,
-                                size: file.size,
-                                type: file.type,
-                                storage_path: data.path,
-                                uploaded_by: user.id,
-                                created_at: new Date().toISOString()
-                            }
-                        ])
-                        .select();
-
-                    if (dbError) throw dbError;
-
-                    return { success: true, fileName: file.name };
-
-                } catch (error) {
-                    console.error('Upload error:', error);
-                    return { success: false, error: error.message };
-                }
-            }
-
-            // Get all files - FIXED VERSION
-            async getAllFiles() {
-                try {
-                    console.log('Fetching all files...');
-                    
-                    // Pertama, ambil semua files
-                    const { data: files, error: filesError } = await this.supabase
-                        .from('files')
-                        .select('*')
-                        .order('created_at', { ascending: false });
-
-                    if (filesError) {
-                        console.error('Files fetch error:', filesError);
-                        throw filesError;
-                    }
-
-                    console.log('Files found:', files);
-
-                    // Jika tidak ada files, return empty array
-                    if (!files || files.length === 0) {
-                        return { success: true, files: [] };
-                    }
-
-                    // Ambil user profiles untuk semua uploaded_by
-                    const userIds = [...new Set(files.map(file => file.uploaded_by))];
-                    console.log('User IDs to fetch:', userIds);
-                    
-                    const { data: profiles, error: profilesError } = await this.supabase
-                        .from('profiles')
-                        .select('id, full_name, email')
-                        .in('id', userIds);
-
-                    if (profilesError) {
-                        console.error('Profiles fetch error:', profilesError);
-                        // Return files without profiles if error
-                        const filesWithoutProfiles = files.map(file => ({
-                            ...file,
-                            profiles: { full_name: 'Unknown User', email: 'unknown@email.com' }
-                        }));
-                        return { success: true, files: filesWithoutProfiles };
-                    }
-
-                    console.log('Profiles found:', profiles);
-
-                    // Gabungkan data files dengan profiles
-                    const filesWithProfiles = files.map(file => {
-                        const profile = profiles.find(p => p.id === file.uploaded_by);
-                        return {
-                            ...file,
-                            profiles: profile || { full_name: 'Unknown User', email: 'unknown@email.com' }
-                        };
-                    });
-
-                    return { success: true, files: filesWithProfiles };
-
-                } catch (error) {
-                    console.error('Get files error:', error);
-                    return { success: false, error: error.message };
-                }
-            }
-
-            // Get download URL
-            async getDownloadUrl(storagePath) {
-                try {
-                    const { data, error } = await this.supabase.storage
-                        .from('files')
-                        .createSignedUrl(storagePath, 60); // URL valid for 60 seconds
-
-                    if (error) throw error;
-                    return data.signedUrl;
-
-                } catch (error) {
-                    console.error('Get download URL error:', error);
-                    return null;
-                }
-            }
-
-            // Format file size
-            formatFileSize(bytes) {
-                if (bytes === 0) return '0 Bytes';
-                const k = 1024;
-                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-            }
-
-            // Get file icon based on type
-            getFileIcon(fileType) {
-                if (fileType.includes('image')) return 'fas fa-file-image';
-                if (fileType.includes('pdf')) return 'fas fa-file-pdf';
-                if (fileType.includes('word') || fileType.includes('document')) return 'fas fa-file-word';
-                if (fileType.includes('excel') || fileType.includes('spreadsheet')) return 'fas fa-file-excel';
-                if (fileType.includes('video')) return 'fas fa-file-video';
-                if (fileType.includes('audio')) return 'fas fa-file-audio';
-                if (fileType.includes('zip') || fileType.includes('archive')) return 'fas fa-file-archive';
-                return 'fas fa-file';
-            }
-        }
-
-        // Initialize file manager
-        window.fileManager = new FileManager();
-
-        // Handle file upload
-        async function handleFileUpload(files) {
+        // ==================== UPLOAD FUNCTIONALITY ====================
+        
+        // Handle file selection
+        function handleFileSelect(files) {
             if (!files || files.length === 0) return;
 
             const file = files[0];
-            const progressDiv = document.getElementById('uploadProgress');
-            
-            // Check file size (10MB limit)
-            if (file.size > 10 * 1024 * 1024) {
-                progressDiv.innerHTML = '<div class="message error">File terlalu besar! Maksimal 10MB.</div>';
+            selectedFile = file;
+
+            console.log('File selected:', file.name, 'Size:', (file.size / (1024 * 1024)).toFixed(2), 'MB');
+
+            // Validate file type
+            const validTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/mpeg'];
+            if (!validTypes.includes(file.type)) {
+                showMessage('Hanya file video yang diperbolehkan (MP4, MOV, AVI)', 'error', document.getElementById('message'));
                 return;
             }
 
-            // Show upload progress
-            progressDiv.innerHTML = `
-                <div class="message" style="border-color: #667eea;">
-                    <i class="fas fa-spinner fa-spin"></i> Mengupload "${file.name}"...
-                </div>
-            `;
-
-            const result = await window.fileManager.uploadFile(file);
-
-            if (result.success) {
-                progressDiv.innerHTML = `<div class="message success">✅ File "${file.name}" berhasil diupload!</div>`;
-                await loadFiles(); // Refresh file list
-                
-                // Clear progress after 3 seconds
-                setTimeout(() => {
-                    progressDiv.innerHTML = '';
-                }, 3000);
-            } else {
-                progressDiv.innerHTML = `<div class="message error">❌ Gagal upload: ${result.error}</div>`;
+            // Validate file size (50MB)
+            if (file.size > 50 * 1024 * 1024) {
+                showMessage('File terlalu besar! Maksimal 50MB.', 'error', document.getElementById('message'));
+                return;
             }
 
-            // Clear file input
-            document.getElementById('fileInput').value = '';
-        }
-
-        // Load and display files
-        async function loadFiles() {
-            const filesContainer = document.getElementById('filesContainer');
-            
-            filesContainer.innerHTML = `
-                <div class="loading">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>Memuat file...</p>
+            // Show file info
+            const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+            document.getElementById('fileInfo').innerHTML = `
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 8px; margin: 10px 0;">
+                    <strong style="color: var(--text-primary);">${file.name}</strong><br>
+                    <small style="color: var(--text-secondary);">Ukuran: ${fileSize} MB | Tipe: ${file.type}</small>
                 </div>
             `;
+            document.getElementById('fileInfo').style.display = 'block';
 
-            const result = await window.fileManager.getAllFiles();
+            // Show video preview
+            const videoPreview = document.getElementById('videoPreview');
+            videoPreview.src = URL.createObjectURL(file);
+            videoPreview.style.display = 'block';
 
-            if (result.success) {
-                if (result.files.length === 0) {
-                    filesContainer.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fas fa-folder-open"></i>
-                            <h3>Belum ada file</h3>
-                            <p>Upload file pertama Anda untuk memulai</p>
-                        </div>
-                    `;
-                } else {
-                    filesContainer.innerHTML = '<div class="files-grid"></div>';
-                    const filesGrid = filesContainer.querySelector('.files-grid');
+            // Show upload form
+            document.getElementById('uploadForm').style.display = 'block';
 
-                    for (const file of result.files) {
-                        const fileCard = document.createElement('div');
-                        fileCard.className = 'file-card';
-                        
-                        const fileIcon = window.fileManager.getFileIcon(file.type);
-                        const fileSize = window.fileManager.formatFileSize(file.size);
-                        const uploadDate = new Date(file.created_at).toLocaleDateString('id-ID');
+            // Clear any previous messages
+            document.getElementById('message').innerHTML = '';
+        }
 
-                        fileCard.innerHTML = `
-                            <div class="file-icon">
-                                <i class="${fileIcon}"></i>
-                            </div>
-                            <div class="file-name">${file.name}</div>
-                            <div class="file-meta">
-                                <span>${fileSize}</span>
-                                <span>${uploadDate}</span>
-                            </div>
-                            <div class="file-meta">
-                                <span>Oleh: <span class="file-uploader">${file.profiles.full_name}</span></span>
-                            </div>
-                            <div class="file-actions">
-                                <button class="btn-download" onclick="downloadFile('${file.storage_path}', '${file.name}')">
-                                    <i class="fas fa-download"></i> Download
-                                </button>
+        // Handle upload form submission
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (!selectedFile) {
+                showMessage('Pilih file video terlebih dahulu', 'error', document.getElementById('message'));
+                return;
+            }
+
+            const title = document.getElementById('videoTitle').value.trim();
+            const description = document.getElementById('videoDescription').value.trim();
+
+            if (!title) {
+                showMessage('Judul video wajib diisi', 'error', document.getElementById('message'));
+                return;
+            }
+
+            // Show progress
+            document.getElementById('uploadProgress').style.display = 'block';
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            
+            let uploadResult;
+            
+            if (selectedFile.size < 2 * 1024 * 1024) {
+                console.log('Using FAST upload method');
+                uploadBtn.innerHTML = '<i class="fas fa-bolt"></i> Upload Cepat...';
+                uploadResult = await window.videoManager.fastUploadSmallFile(
+                    selectedFile, 
+                    title, 
+                    description, 
+                    (progress) => {
+                        updateProgress(progress, 'Mode Cepat');
+                    }
+                );
+            } else {
+                console.log('Using standard upload method');
+                uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Mengupload...';
+                uploadResult = await window.videoManager.uploadVideo(
+                    selectedFile, 
+                    title, 
+                    description, 
+                    (progress) => {
+                        updateProgress(progress, 'Standard');
+                    }
+                );
+            }
+
+            // Handle result
+            if (uploadResult.success) {
+                showMessage('✅ Video berhasil diupload!', 'success', document.getElementById('message'));
+                
+                // Refresh videos
+                setTimeout(() => {
+                    loadAllVideos();
+                    loadMyVideos();
+                    cancelUpload();
+                }, 1500);
+            } else {
+                showMessage('❌ Gagal upload: ' + uploadResult.error, 'error', document.getElementById('message'));
+                resetUploadButton();
+            }
+        });
+
+        // Update progress bar
+        function updateProgress(progress, mode = '') {
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const percentage = Math.round(progress);
+            
+            progressFill.style.width = percentage + '%';
+            
+            if (mode === 'Mode Cepat') {
+                progressText.innerHTML = `⚡ ${mode} - ${percentage}%`;
+                progressFill.style.background = 'linear-gradient(90deg, #00f2ea, #ff0050)';
+            } else {
+                progressText.innerHTML = `📤 Uploading... ${percentage}%`;
+                progressFill.style.background = 'linear-gradient(90deg, var(--primary-color), var(--secondary-color))';
+            }
+        }
+
+        // Reset upload button
+        function resetUploadButton() {
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Upload';
+            document.getElementById('uploadProgress').style.display = 'none';
+        }
+
+        // Cancel upload
+        function cancelUpload() {
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('videoPreview').style.display = 'none';
+            document.getElementById('fileInfo').style.display = 'none';
+            document.getElementById('uploadForm').style.display = 'none';
+            document.getElementById('uploadProgress').style.display = 'none';
+            document.getElementById('message').innerHTML = '';
+            resetUploadButton();
+            
+            // Reset form
+            document.getElementById('videoTitle').value = '';
+            document.getElementById('videoDescription').value = '';
+        }
+
+        // ==================== VIDEO FEED FUNCTIONALITY ====================
+
+        class VideoFeed {
+            constructor() {
+                this.supabase = window.supabase;
+                this.currentVideoIndex = 0;
+            }
+
+            async loadVideos() {
+                const feedContainer = document.getElementById('videoFeed');
+                
+                try {
+                    const result = await window.videoManager.getAllVideos();
+                    
+                    if (result.success && result.videos.length > 0) {
+                        currentVideos = result.videos;
+                        this.renderVideos();
+                    } else {
+                        feedContainer.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-video-slash"></i>
+                                <h3>Belum ada video</h3>
+                                <p>Upload video pertama Anda!</p>
                             </div>
                         `;
-
-                        filesGrid.appendChild(fileCard);
                     }
+                } catch (error) {
+                    console.error('Error loading videos:', error);
+                    feedContainer.innerHTML = `<div class="message error">Gagal memuat video: ${error.message}</div>`;
                 }
-            } else {
-                filesContainer.innerHTML = `<div class="message error">Gagal memuat file: ${result.error}</div>`;
+            }
+
+            renderVideos() {
+                const feedContainer = document.getElementById('videoFeed');
+                feedContainer.innerHTML = '';
+
+                currentVideos.forEach((video, index) => {
+                    const videoElement = this.createVideoElement(video, index);
+                    feedContainer.appendChild(videoElement);
+                });
+            }
+
+            createVideoElement(video, index) {
+                const videoContainer = document.createElement('div');
+                videoContainer.className = 'video-container';
+                videoContainer.innerHTML = `
+                    <video 
+                        class="video-player" 
+                        loop 
+                        muted
+                        playsinline
+                        poster="https://via.placeholder.com/360x640/1e1e1e/666666?text=Loading..."
+                        onloadeddata="this.play()"
+                    >
+                        <source src="${video.video_url}" type="video/mp4">
+                        Browser Anda tidak mendukung video tag.
+                    </video>
+                    <div class="video-overlay">
+                        <div class="video-info">
+                            <div class="video-title">${video.title || 'Video Tanpa Judul'}</div>
+                            <div class="video-author">@${video.profiles?.full_name || 'Unknown'}</div>
+                        </div>
+                        <div class="video-actions">
+                            <div class="action-btn" onclick="toggleLike(this, '${video.id}')">
+                                <div class="action-icon">
+                                    <i class="fas fa-heart"></i>
+                                </div>
+                                <div class="action-count">${video.likes_count || 0}</div>
+                            </div>
+                            <div class="action-btn" onclick="shareVideo('${video.id}')">
+                                <div class="action-icon">
+                                    <i class="fas fa-share"></i>
+                                </div>
+                                <div class="action-count">Share</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Add click to play/pause
+                videoContainer.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('action-btn') || e.target.closest('.action-btn')) {
+                        return; // Don't toggle play/pause when clicking actions
+                    }
+                    const video = this.querySelector('video');
+                    if (video.paused) {
+                        video.play();
+                    } else {
+                        video.pause();
+                    }
+                });
+
+                return videoContainer;
             }
         }
 
-        // Download file
-        async function downloadFile(storagePath, fileName) {
+        // ==================== MY VIDEOS FUNCTIONALITY ====================
+
+        async function loadMyVideos() {
+            const myVideosList = document.getElementById('myVideosList');
+            const user = await window.authManager.getCurrentUser();
+            
+            if (!user) return;
+
             try {
-                const { data, error } = await window.supabase.storage
-                    .from('files')
-                    .download(storagePath);
+                const { data: videos, error } = await window.supabase
+                    .from('videos')
+                    .select('*')
+                    .eq('uploaded_by', user.id)
+                    .order('created_at', { ascending: false });
 
                 if (error) throw error;
 
-                // Create download link
-                const url = URL.createObjectURL(data);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-                
+                if (!videos || videos.length === 0) {
+                    myVideosList.innerHTML = `
+                        <div class="empty-state" style="padding: 20px;">
+                            <i class="fas fa-video"></i>
+                            <p style="font-size: 0.8rem;">Belum ada video</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                myVideosList.innerHTML = '';
+                videos.forEach(video => {
+                    const videoItem = document.createElement('div');
+                    videoItem.className = 'my-video-item';
+                    videoItem.onclick = () => playVideo(video.id);
+                    videoItem.innerHTML = `
+                        <div class="my-video-thumbnail">
+                            <i class="fas fa-play"></i>
+                        </div>
+                        <div class="my-video-info">
+                            <div class="my-video-title">${video.title || 'Untitled'}</div>
+                            <div class="my-video-stats">
+                                ${new Date(video.created_at).toLocaleDateString('id-ID')}
+                            </div>
+                        </div>
+                    `;
+                    myVideosList.appendChild(videoItem);
+                });
+
             } catch (error) {
-                console.error('Download error:', error);
-                alert('Error saat download file: ' + error.message);
+                console.error('Error loading my videos:', error);
+                myVideosList.innerHTML = `<div class="message error">Gagal memuat video</div>`;
             }
         }
 
-        // Load user info and files on page load
+        // ==================== UTILITY FUNCTIONS ====================
+
+        // Toggle upload sidebar on mobile
+        function toggleUploadSidebar() {
+            const sidebar = document.getElementById('uploadSidebar');
+            if (window.innerWidth <= 768) {
+                sidebar.style.display = sidebar.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        // Play specific video
+        function playVideo(videoId) {
+            const video = currentVideos.find(v => v.id === videoId);
+            if (video) {
+                const videoElement = document.querySelector(`[data-video-id="${videoId}"]`);
+                if (videoElement) {
+                    videoElement.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+        }
+
+        // Toggle like
+        function toggleLike(button, videoId) {
+            const icon = button.querySelector('i');
+            const countElement = button.querySelector('.action-count');
+            
+            if (icon.classList.contains('fas')) {
+                icon.classList.replace('fas', 'far');
+                countElement.textContent = parseInt(countElement.textContent) - 1;
+            } else {
+                icon.classList.replace('far', 'fas');
+                icon.style.color = '#ff0050';
+                countElement.textContent = parseInt(countElement.textContent) + 1;
+            }
+        }
+
+        // Share video
+        function shareVideo(videoId) {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'VideoShare',
+                    text: 'Tonton video ini di VideoShare!',
+                    url: window.location.href + '?video=' + videoId
+                });
+            } else {
+                alert('Link video telah disalin ke clipboard!');
+            }
+        }
+
+        // Load all videos
+        async function loadAllVideos() {
+            const videoFeed = new VideoFeed();
+            await videoFeed.loadVideos();
+        }
+
+        // Initialize dashboard
         async function initDashboard() {
             const user = await window.authManager.getCurrentUser();
-            
             if (!user) {
                 window.location.href = 'index.html';
                 return;
             }
 
-            // Load user profile
-            const profile = await window.authManager.getUserProfile(user.id);
-            if (profile) {
-                document.getElementById('userName').textContent = profile.full_name;
-                document.getElementById('userAvatar').textContent = profile.full_name.charAt(0).toUpperCase();
-            }
+            // Load all sections
+            await loadAllVideos();
+            await loadMyVideos();
 
-            // Load files
-            await loadFiles();
+            // Hide sidebar on mobile by default
+            if (window.innerWidth <= 768) {
+                document.getElementById('uploadSidebar').style.display = 'none';
+            }
         }
 
         // Logout function
@@ -357,13 +959,8 @@
             const result = await window.authManager.logout();
             if (result.success) {
                 window.location.href = 'index.html';
-            } else {
-                alert('Logout gagal: ' + result.error);
             }
         }
-
-        // Initialize dashboard when page loads
-        document.addEventListener('DOMContentLoaded', initDashboard);
 
         // Drag and drop functionality
         document.addEventListener('DOMContentLoaded', function() {
@@ -387,13 +984,13 @@
             });
 
             function highlight() {
-                uploadArea.style.background = '#e9ecef';
-                uploadArea.style.borderColor = '#667eea';
+                uploadArea.style.background = 'rgba(255, 255, 255, 0.1)';
+                uploadArea.style.borderColor = 'var(--secondary-color)';
             }
 
             function unhighlight() {
-                uploadArea.style.background = '#f8f9fa';
-                uploadArea.style.borderColor = '#667eea';
+                uploadArea.style.background = 'rgba(255, 255, 255, 0.05)';
+                uploadArea.style.borderColor = 'var(--primary-color)';
             }
 
             uploadArea.addEventListener('drop', handleDrop, false);
@@ -401,9 +998,22 @@
             function handleDrop(e) {
                 const dt = e.dataTransfer;
                 const files = dt.files;
-                handleFileUpload(files);
+                handleFileSelect(files);
             }
+
+            initDashboard();
         });
+
+        // Utility function to show messages
+        function showMessage(message, type, container) {
+            container.innerHTML = `<div class="message ${type}">${message}</div>`;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    container.innerHTML = '';
+                }, 5000);
+            }
+        }
     </script>
 </body>
 </html>
