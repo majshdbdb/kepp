@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload - VideoShare</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="upload-page">
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-logo">🎬 VideoShare</div>
+        <div class="nav-actions">
+            <button class="nav-btn" onclick="location.href='feed.html'">
+                <i class="fas fa-home"></i>
+            </button>
+            <button class="nav-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Upload Section -->
+    <main class="upload-container">
+        <div class="upload-card fade-in">
+            <h1><i class="fas fa-cloud-upload-alt"></i> Upload Video Baru</h1>
+            
+            <div id="message"></div>
+
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <i class="fas fa-video"></i>
+                <h3>Klik untuk memilih video</h3>
+                <p>atau tarik video ke sini</p>
+                <small>Format: MP4, MOV, AVI | Maksimal: 50MB</small>
+            </div>
+            
+            <input type="file" id="fileInput" accept="video/*" style="display: none;" onchange="handleFileSelect(this.files)">
+            
+            <!-- Video Preview -->
+            <div class="upload-preview">
+                <video id="videoPreview" controls style="display: none;"></video>
+                <div id="fileInfo" style="display: none;"></div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div id="uploadProgress" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div id="progressText" style="text-align: center; color: var(--text-secondary); font-size: 0.9rem; margin-top: 5px;"></div>
+            </div>
+
+            <!-- Upload Form -->
+            <form id="uploadForm" class="upload-form" style="display: none;">
+                <div class="form-group">
+                    <label for="videoTitle">Judul Video:</label>
+                    <input type="text" id="videoTitle" placeholder="Berikan judul yang menarik..." maxlength="100" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="videoDescription">Deskripsi (opsional):</label>
+                    <textarea id="videoDescription" placeholder="Jelaskan tentang video Anda..." rows="3" style="width: 100%; padding: 15px; border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 10px; background: rgba(255, 255, 255, 0.05); color: var(--text-primary); font-family: inherit; resize: vertical;"></textarea>
+                </div>
+
+                <div class="upload-actions">
+                    <button type="button" class="btn-secondary" onclick="cancelUpload()">
+                        <i class="fas fa-times"></i> Batal
+                    </button>
+                    <button type="submit" class="btn-primary" id="uploadBtn">
+                        <i class="fas fa-upload"></i> Upload Video
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/videos.js"></script>
+    
+    <script>
+        let selectedFile = null;
+
+        // Handle file selection
+        function handleFileSelect(files) {
+            if (!files || files.length === 0) return;
+
+            const file = files[0];
+            selectedFile = file;
+
+            // Validate file type
+            const validTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/mpeg'];
+            if (!validTypes.includes(file.type)) {
+                showMessage('Hanya file video yang diperbolehkan (MP4, MOV, AVI)', 'error', document.getElementById('message'));
+                return;
+            }
+
+            // Validate file size (50MB)
+            if (file.size > 50 * 1024 * 1024) {
+                showMessage('File terlalu besar! Maksimal 50MB.', 'error', document.getElementById('message'));
+                return;
+            }
+
+            // Show file info
+            const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+            document.getElementById('fileInfo').innerHTML = `
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; margin: 10px 0;">
+                    <strong>${file.name}</strong><br>
+                    <small>Ukuran: ${fileSize} MB | Tipe: ${file.type}</small>
+                </div>
+            `;
+            document.getElementById('fileInfo').style.display = 'block';
+
+            // Show video preview
+            const videoPreview = document.getElementById('videoPreview');
+            videoPreview.src = URL.createObjectURL(file);
+            videoPreview.style.display = 'block';
+
+            // Show upload form
+            document.getElementById('uploadForm').style.display = 'block';
+
+            // Clear any previous messages
+            document.getElementById('message').innerHTML = '';
+        }
+
+        // Handle upload form submission
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (!selectedFile) {
+                showMessage('Pilih file video terlebih dahulu', 'error', document.getElementById('message'));
+                return;
+            }
+
+            const title = document.getElementById('videoTitle').value.trim();
+            const description = document.getElementById('videoDescription').value.trim();
+
+            if (!title) {
+                showMessage('Judul video wajib diisi', 'error', document.getElementById('message'));
+                return;
+            }
+
+            // Show progress
+            document.getElementById('uploadProgress').style.display = 'block';
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengupload...';
+
+            // Upload video
+            const result = await window.videoManager.uploadVideo(selectedFile, title, description, (progress) => {
+                const progressFill = document.getElementById('progressFill');
+                const progressText = document.getElementById('progressText');
+                const percentage = Math.round(progress);
+                
+                progressFill.style.width = percentage + '%';
+                progressText.textContent = `Uploading... ${percentage}%`;
+            });
+
+            if (result.success) {
+                showMessage('✅ Video berhasil diupload! Mengalihkan...', 'success', document.getElementById('message'));
+                
+                setTimeout(() => {
+                    window.location.href = 'feed.html';
+                }, 2000);
+            } else {
+                showMessage('❌ Gagal upload: ' + result.error, 'error', document.getElementById('message'));
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Video';
+            }
+        });
+
+        // Cancel upload
+        function cancelUpload() {
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('videoPreview').style.display = 'none';
+            document.getElementById('fileInfo').style.display = 'none';
+            document.getElementById('uploadForm').style.display = 'none';
+            document.getElementById('uploadProgress').style.display = 'none';
+            document.getElementById('message').innerHTML = '';
+        }
+
+        // Drag and drop functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.querySelector('.upload-area');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, unhighlight, false);
+            });
+
+            function highlight() {
+                uploadArea.style.background = 'rgba(255, 255, 255, 0.1)';
+                uploadArea.style.borderColor = 'var(--secondary-color)';
+            }
+
+            function unhighlight() {
+                uploadArea.style.background = 'rgba(255, 255, 255, 0.05)';
+                uploadArea.style.borderColor = 'var(--primary-color)';
+            }
+
+            uploadArea.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFileSelect(files);
+            }
+        });
+
+        // Check authentication
+        async function initUpload() {
+            const user = await window.authManager.getCurrentUser();
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+        }
+
+        // Logout function
+        async function logout() {
+            const result = await window.authManager.logout();
+            if (result.success) {
+                window.location.href = 'index.html';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initUpload);
+    </script>
+</body>
+</html>
