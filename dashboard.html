@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - FileShare</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="dashboard">
+    <!-- Navigation -->
+    <nav class="dashboard-nav">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2>📁 FileShare</h2>
+            </div>
+            
+            <div class="nav-user">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">U</div>
+                    <span id="userName">Loading...</span>
+                </div>
+                <button class="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="dashboard-main">
+        <!-- Upload Section -->
+        <section class="upload-section">
+            <h2><i class="fas fa-cloud-upload-alt"></i> Upload File Baru</h2>
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <i class="fas fa-file-upload"></i>
+                <p>Klik untuk memilih file atau tarik file ke sini</p>
+                <small>Maksimal 10MB per file</small>
+            </div>
+            <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(this.files)">
+            <div id="uploadProgress"></div>
+        </section>
+
+        <!-- Files List -->
+        <section class="file-list">
+            <h2><i class="fas fa-files"></i> Semua File</h2>
+            <div id="filesContainer">
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Memuat file...</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    
+    <script>
+        // File upload and management functions
+        class FileManager {
+            constructor() {
+                this.supabase = window.supabase;
+            }
+
+            // Upload file to Supabase Storage
+            async uploadFile(file) {
+                try {
+                    const user = await window.authManager.getCurrentUser();
+                    if (!user) throw new Error('User not authenticated');
+
+                    // Generate unique file name
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+                    // Upload file to storage
+                    const { data, error } = await this.supabase.storage
+                        .from('files')
+                        .upload(fileName, file);
+
+                    if (error) throw error;
+
+                    // Save file metadata to database
+                    const { error: dbError } = await this.supabase
+                        .from('files')
+                        .insert([
+                            {
+                                name: file.name,
+                                size: file.size,
+                                type: file.type,
+                                storage_path: data.path,
+                                uploaded_by: user.id,
+                                created_at: new Date().toISOString()
+                            }
+                        ]);
+
+                    if (dbError) throw dbError;
+
+                    return { success: true, fileName: file.name };
+
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    return { success: false, error: error.message };
+                }
+            }
+
+            // Get all files
+            async getAllFiles() {
+                try {
+                    const { data: files, error } = await this.supabase
+                        .from('files')
+                        .select(`
+                            *,
+                            profiles:uploaded_by(full_name)
+                        `)
+                        .order('created_at', { ascending: false });
+
+                    if (error) throw error;
+                    return { success: true, files: files || [] };
+
+                } catch (error) {
+                    console.error('Get files error:', error);
+                    return { success: false, error: error.message };
+                }
+            }
+
+            // Get download URL
+            async getDownloadUrl(storagePath) {
+                try {
+                    const { data, error } = await this.supabase.storage
+                        .from('files')
+                        .createSignedUrl(storagePath, 60); // URL valid for 60 seconds
+
+                    if (error) throw error;
+                    return data.signedUrl;
+
+                } catch (error) {
+                    console.error('Get download URL error:', error);
+                    return null;
+                }
+            }
+
+            // Format file size
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            // Get file icon based on type
+            getFileIcon(fileType) {
+                if (fileType.includes('image')) return 'fas fa-file-image';
+                if (fileType.includes('pdf')) return 'fas fa-file-pdf';
+                if (fileType.includes('word') || fileType.includes('document')) return 'fas fa-file-word';
+                if (fileType.includes('excel') || fileType.includes('spreadsheet')) return 'fas fa-file-excel';
+                if (fileType.includes('video')) return 'fas fa-file-video';
+                if (fileType.includes('audio')) return 'fas fa-file-audio';
+                if (fileType.includes('zip') || fileType.includes('archive')) return 'fas fa-file-archive';
+                return 'fas fa-file';
+            }
+        }
+
+        // Initialize file manager
+        window.fileManager = new FileManager();
+
+        // Handle file upload
+        async function handleFileUpload(files) {
+            if (!files || files.length === 0) return;
+
+            const file = files[0];
+            const progressDiv = document.getElementById('uploadProgress');
+            
+            // Check file size (10MB limit)
+            if (file.size > 10 * 1024 * 1024) {
+                progressDiv.innerHTML = '<div class="message error">File terlalu besar! Maksimal 10MB.</div>';
+                return;
+            }
+
+            // Show upload progress
+            progressDiv.innerHTML = `
+                <div class="message" style="border-color: #667eea;">
+                    <i class="fas fa-spinner fa-spin"></i> Mengupload "${file.name}"...
+                </div>
+            `;
+
+            const result = await window.fileManager.uploadFile(file);
+
+            if (result.success) {
+                progressDiv.innerHTML = `<div class="message success">✅ File "${file.name}" berhasil diupload!</div>`;
+                loadFiles(); // Refresh file list
+                
+                // Clear progress after 3 seconds
+                setTimeout(() => {
+                    progressDiv.innerHTML = '';
+                }, 3000);
+            } else {
+                progressDiv.innerHTML = `<div class="message error">❌ Gagal upload: ${result.error}</div>`;
+            }
+
+            // Clear file input
+            document.getElementById('fileInput').value = '';
+        }
+
+        // Load and display files
+        async function loadFiles() {
+            const filesContainer = document.getElementById('filesContainer');
+            
+            filesContainer.innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Memuat file...</p>
+                </div>
+            `;
+
+            const result = await window.fileManager.getAllFiles();
+
+            if (result.success) {
+                if (result.files.length === 0) {
+                    filesContainer.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-folder-open"></i>
+                            <h3>Belum ada file</h3>
+                            <p>Upload file pertama Anda untuk memulai</p>
+                        </div>
+                    `;
+                } else {
+                    filesContainer.innerHTML = '<div class="files-grid"></div>';
+                    const filesGrid = filesContainer.querySelector('.files-grid');
+
+                    for (const file of result.files) {
+                        const fileCard = document.createElement('div');
+                        fileCard.className = 'file-card';
+                        
+                        const fileIcon = window.fileManager.getFileIcon(file.type);
+                        const fileSize = window.fileManager.formatFileSize(file.size);
+                        const uploadDate = new Date(file.created_at).toLocaleDateString('id-ID');
+
+                        fileCard.innerHTML = `
+                            <div class="file-icon">
+                                <i class="${fileIcon}"></i>
+                            </div>
+                            <div class="file-name">${file.name}</div>
+                            <div class="file-meta">
+                                <span>${fileSize}</span>
+                                <span>${uploadDate}</span>
+                            </div>
+                            <div class="file-meta">
+                                <span>Oleh: <span class="file-uploader">${file.profiles?.full_name || 'Unknown'}</span></span>
+                            </div>
+                            <div class="file-actions">
+                                <button class="btn-download" onclick="downloadFile('${file.storage_path}', '${file.name}')">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                            </div>
+                        `;
+
+                        filesGrid.appendChild(fileCard);
+                    }
+                }
+            } else {
+                filesContainer.innerHTML = `<div class="message error">Gagal memuat file: ${result.error}</div>`;
+            }
+        }
+
+        // Download file
+        async function downloadFile(storagePath, fileName) {
+            try {
+                const downloadUrl = await window.fileManager.getDownloadUrl(storagePath);
+                if (downloadUrl) {
+                    // Create temporary link for download
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = fileName;
+                    link.click();
+                } else {
+                    alert('Gagal mendapatkan link download');
+                }
+            } catch (error) {
+                console.error('Download error:', error);
+                alert('Error saat download file');
+            }
+        }
+
+        // Load user info and files on page load
+        async function initDashboard() {
+            const user = await window.authManager.getCurrentUser();
+            
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Load user profile
+            const profile = await window.authManager.getUserProfile(user.id);
+            if (profile) {
+                document.getElementById('userName').textContent = profile.full_name;
+                document.getElementById('userAvatar').textContent = profile.full_name.charAt(0).toUpperCase();
+            }
+
+            // Load files
+            await loadFiles();
+        }
+
+        // Logout function
+        async function logout() {
+            const result = await window.authManager.logout();
+            if (result.success) {
+                window.location.href = 'index.html';
+            } else {
+                alert('Logout gagal: ' + result.error);
+            }
+        }
+
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', initDashboard);
+
+        // Drag and drop functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.querySelector('.upload-area');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, unhighlight, false);
+            });
+
+            function highlight() {
+                uploadArea.style.background = '#e9ecef';
+                uploadArea.style.borderColor = '#667eea';
+            }
+
+            function unhighlight() {
+                uploadArea.style.background = '#f8f9fa';
+                uploadArea.style.borderColor = '#667eea';
+            }
+
+            uploadArea.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFileUpload(files);
+            }
+        });
+    </script>
+</body>
+</html>
