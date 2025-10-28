@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feed - VideoShare</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="feed-page">
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-logo">🎬 VideoShare</div>
+        <div class="nav-actions">
+            <button class="nav-btn" onclick="location.href='upload.html'">
+                <i class="fas fa-plus"></i>
+            </button>
+            <button class="nav-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Video Feed -->
+    <div class="video-feed" id="videoFeed">
+        <div class="loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Memuat video...</p>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/videos.js"></script>
+    
+    <script>
+        class VideoFeed {
+            constructor() {
+                this.supabase = window.supabase;
+                this.currentVideoIndex = 0;
+                this.videos = [];
+            }
+
+            async loadVideos() {
+                const feedContainer = document.getElementById('videoFeed');
+                
+                try {
+                    const result = await window.videoManager.getAllVideos();
+                    
+                    if (result.success && result.videos.length > 0) {
+                        this.videos = result.videos;
+                        this.renderVideos();
+                    } else {
+                        feedContainer.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-video-slash"></i>
+                                <h3>Belum ada video</h3>
+                                <p>Jadilah yang pertama mengupload video!</p>
+                                <button class="btn-primary" onclick="location.href='upload.html'" style="margin-top: 20px;">
+                                    Upload Video Pertama
+                                </button>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Error loading videos:', error);
+                    feedContainer.innerHTML = `<div class="message error">Gagal memuat video: ${error.message}</div>`;
+                }
+            }
+
+            renderVideos() {
+                const feedContainer = document.getElementById('videoFeed');
+                feedContainer.innerHTML = '';
+
+                this.videos.forEach((video, index) => {
+                    const videoElement = this.createVideoElement(video, index);
+                    feedContainer.appendChild(videoElement);
+                });
+            }
+
+            createVideoElement(video, index) {
+                const videoContainer = document.createElement('div');
+                videoContainer.className = 'video-container';
+                videoContainer.innerHTML = `
+                    <video 
+                        class="video-player" 
+                        loop 
+                        muted
+                        playsinline
+                        poster="https://via.placeholder.com/360x640/1e1e1e/666666?text=Loading..."
+                        onloadeddata="this.play()"
+                    >
+                        <source src="${video.video_url}" type="video/mp4">
+                        Browser Anda tidak mendukung video tag.
+                    </video>
+                    <div class="video-overlay">
+                        <div class="video-info">
+                            <div class="video-title">${video.title || 'Video Tanpa Judul'}</div>
+                            <div class="video-author">@${video.profiles?.full_name || 'Unknown'}</div>
+                        </div>
+                        <div class="video-actions">
+                            <div class="action-btn" onclick="this.querySelector('.action-icon').style.color = '#ff0050'">
+                                <div class="action-icon">
+                                    <i class="fas fa-heart"></i>
+                                </div>
+                                <div class="action-count">${video.likes_count || 0}</div>
+                            </div>
+                            <div class="action-btn" onclick="shareVideo('${video.id}')">
+                                <div class="action-icon">
+                                    <i class="fas fa-share"></i>
+                                </div>
+                                <div class="action-count">Share</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Add click to play/pause
+                videoContainer.addEventListener('click', function(e) {
+                    const video = this.querySelector('video');
+                    if (video.paused) {
+                        video.play();
+                    } else {
+                        video.pause();
+                    }
+                });
+
+                return videoContainer;
+            }
+        }
+
+        // Initialize video feed
+        const videoFeed = new VideoFeed();
+
+        // Load videos on page load
+        async function initFeed() {
+            const user = await window.authManager.getCurrentUser();
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            await videoFeed.loadVideos();
+        }
+
+        // Share video function
+        function shareVideo(videoId) {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'VideoShare',
+                    text: 'Tonton video ini di VideoShare!',
+                    url: window.location.href + '?video=' + videoId
+                });
+            } else {
+                alert('Link video telah disalin ke clipboard!');
+            }
+        }
+
+        // Logout function
+        async function logout() {
+            const result = await window.authManager.logout();
+            if (result.success) {
+                window.location.href = 'index.html';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initFeed);
+    </script>
+</body>
+</html>
