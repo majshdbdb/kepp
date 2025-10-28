@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FileShare - Upload & Share Files</title>
+    <title>VideoShare - Platform Video Pendek</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0"></script>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
-    <div class="container">
+<body class="auth-page">
+    <div class="auth-container">
         <div class="auth-card">
             <div class="logo">
-                <h1>📁 FileShare</h1>
-                <p>Upload dan bagikan file dengan mudah</p>
+                <h1>🎬 VideoShare</h1>
+                <p>Platform berbagi video pendek</p>
             </div>
 
             <div id="message"></div>
@@ -56,8 +56,20 @@
                     <label for="registerPassword">Password:</label>
                     <input type="password" id="registerPassword" placeholder="Minimal 6 karakter" required minlength="6">
                 </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword">Konfirmasi Password:</label>
+                    <input type="password" id="confirmPassword" placeholder="Ulangi password" required minlength="6">
+                </div>
+
+                <!-- Simple CAPTCHA -->
+                <div class="form-group">
+                    <label for="captcha">CAPTCHA: <span id="captchaQuestion">8 + 3 = ?</span></label>
+                    <input type="text" id="captcha" placeholder="Jawaban" required>
+                    <input type="hidden" id="captchaAnswer" value="11">
+                </div>
                 
-                <button type="submit" class="btn-primary">Daftar</button>
+                <button type="submit" class="btn-primary" id="registerBtn">Daftar</button>
                 
                 <p class="auth-switch">
                     Sudah punya akun? <a href="#" id="showLogin">Login di sini</a>
@@ -70,11 +82,22 @@
     <script src="js/auth.js"></script>
     
     <script>
+        // Generate simple CAPTCHA
+        function generateCaptcha() {
+            const num1 = Math.floor(Math.random() * 10) + 1;
+            const num2 = Math.floor(Math.random() * 10) + 1;
+            const answer = num1 + num2;
+            
+            document.getElementById('captchaQuestion').textContent = `${num1} + ${num2} = ?`;
+            document.getElementById('captchaAnswer').value = answer;
+        }
+
         // Toggle between login and register forms
         document.getElementById('showRegister').addEventListener('click', function(e) {
             e.preventDefault();
             document.getElementById('loginForm').classList.add('hidden');
             document.getElementById('registerForm').classList.remove('hidden');
+            generateCaptcha();
         });
 
         document.getElementById('showLogin').addEventListener('click', function(e) {
@@ -83,15 +106,40 @@
             document.getElementById('loginForm').classList.remove('hidden');
         });
 
+        // Register form validation
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            const password = document.getElementById('registerPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const captchaInput = document.getElementById('captcha').value;
+            const captchaAnswer = document.getElementById('captchaAnswer').value;
+
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                showMessage('Password dan konfirmasi password tidak cocok', 'error', document.getElementById('message'));
+                return;
+            }
+
+            if (captchaInput !== captchaAnswer) {
+                e.preventDefault();
+                showMessage('Jawaban CAPTCHA salah', 'error', document.getElementById('message'));
+                generateCaptcha();
+                document.getElementById('captcha').value = '';
+                return;
+            }
+        });
+
         // Check if user is already logged in
         async function checkAuth() {
             const { data: { user } } = await window.supabase.auth.getUser();
             if (user) {
-                window.location.href = 'dashboard.html';
+                window.location.href = 'feed.html';
             }
         }
 
-        document.addEventListener('DOMContentLoaded', checkAuth);
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            generateCaptcha();
+        });
     </script>
 </body>
 </html>
