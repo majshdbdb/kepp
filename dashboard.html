@@ -58,7 +58,7 @@
     <script src="js/auth.js"></script>
     
     <script>
-        // File upload and management functions
+        // File upload and management functions - FIXED VERSION
         class FileManager {
             constructor() {
                 this.supabase = window.supabase;
@@ -93,7 +93,8 @@
                                 uploaded_by: user.id,
                                 created_at: new Date().toISOString()
                             }
-                        ]);
+                        ])
+                        .select();
 
                     if (dbError) throw dbError;
 
@@ -105,19 +106,60 @@
                 }
             }
 
-            // Get all files
+            // Get all files - FIXED VERSION
             async getAllFiles() {
                 try {
-                    const { data: files, error } = await this.supabase
+                    console.log('Fetching all files...');
+                    
+                    // Pertama, ambil semua files
+                    const { data: files, error: filesError } = await this.supabase
                         .from('files')
-                        .select(`
-                            *,
-                            profiles:uploaded_by(full_name)
-                        `)
+                        .select('*')
                         .order('created_at', { ascending: false });
 
-                    if (error) throw error;
-                    return { success: true, files: files || [] };
+                    if (filesError) {
+                        console.error('Files fetch error:', filesError);
+                        throw filesError;
+                    }
+
+                    console.log('Files found:', files);
+
+                    // Jika tidak ada files, return empty array
+                    if (!files || files.length === 0) {
+                        return { success: true, files: [] };
+                    }
+
+                    // Ambil user profiles untuk semua uploaded_by
+                    const userIds = [...new Set(files.map(file => file.uploaded_by))];
+                    console.log('User IDs to fetch:', userIds);
+                    
+                    const { data: profiles, error: profilesError } = await this.supabase
+                        .from('profiles')
+                        .select('id, full_name, email')
+                        .in('id', userIds);
+
+                    if (profilesError) {
+                        console.error('Profiles fetch error:', profilesError);
+                        // Return files without profiles if error
+                        const filesWithoutProfiles = files.map(file => ({
+                            ...file,
+                            profiles: { full_name: 'Unknown User', email: 'unknown@email.com' }
+                        }));
+                        return { success: true, files: filesWithoutProfiles };
+                    }
+
+                    console.log('Profiles found:', profiles);
+
+                    // Gabungkan data files dengan profiles
+                    const filesWithProfiles = files.map(file => {
+                        const profile = profiles.find(p => p.id === file.uploaded_by);
+                        return {
+                            ...file,
+                            profiles: profile || { full_name: 'Unknown User', email: 'unknown@email.com' }
+                        };
+                    });
+
+                    return { success: true, files: filesWithProfiles };
 
                 } catch (error) {
                     console.error('Get files error:', error);
@@ -190,7 +232,7 @@
 
             if (result.success) {
                 progressDiv.innerHTML = `<div class="message success">✅ File "${file.name}" berhasil diupload!</div>`;
-                loadFiles(); // Refresh file list
+                await loadFiles(); // Refresh file list
                 
                 // Clear progress after 3 seconds
                 setTimeout(() => {
@@ -248,7 +290,7 @@
                                 <span>${uploadDate}</span>
                             </div>
                             <div class="file-meta">
-                                <span>Oleh: <span class="file-uploader">${file.profiles?.full_name || 'Unknown'}</span></span>
+                                <span>Oleh: <span class="file-uploader">${file.profiles.full_name}</span></span>
                             </div>
                             <div class="file-actions">
                                 <button class="btn-download" onclick="downloadFile('${file.storage_path}', '${file.name}')">
@@ -268,19 +310,25 @@
         // Download file
         async function downloadFile(storagePath, fileName) {
             try {
-                const downloadUrl = await window.fileManager.getDownloadUrl(storagePath);
-                if (downloadUrl) {
-                    // Create temporary link for download
-                    const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.download = fileName;
-                    link.click();
-                } else {
-                    alert('Gagal mendapatkan link download');
-                }
+                const { data, error } = await window.supabase.storage
+                    .from('files')
+                    .download(storagePath);
+
+                if (error) throw error;
+
+                // Create download link
+                const url = URL.createObjectURL(data);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
             } catch (error) {
                 console.error('Download error:', error);
-                alert('Error saat download file');
+                alert('Error saat download file: ' + error.message);
             }
         }
 
